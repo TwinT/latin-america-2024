@@ -15,3 +15,15 @@ from gem5.components.memory.dram_interfaces.lpddr5 import LPDDR5_6400_1x16_BG_BL
 from gem5.components.processors.linear_generator import LinearGenerator
 from gem5.components.processors.random_generator import RandomGenerator
 from gem5.simulate.simulator import Simulator
+
+board = TestBoard(
+    clk_freq="3GHz",
+    generator=LinearGenerator(num_cores=1, rate="16GiB/s"),
+    memory=SingleChannelSimpleMemory(
+        latency="20ns", bandwidht="32GiB/s",
+        latency_var="0s", size="1GiB"),
+    cache_hierarchy=NoCache(),
+)
+
+simulator = Simulator(board)
+simulator.run()
