@@ -8,3 +8,11 @@ class HelloSimObject(SimObject):
     cxx_class = "gem5::HelloSimObject"
 
     num_hellos = Param.Int("Number of times to say Hello.")
+
+    goodbye_object = Param.GoodByeSimObject("GoodByeSimObject to say goodbye after done saying hello.")
+
+class GoodByeSimObject(SimObject):
+    type = "GoodByeSimObject"
+    cxx_header = "bootcamp/hello-sim-object/goodbye_sim_object.hh"
+    cxx_class = "gem5::GoodByeSimObject"
+
