@@ -224,7 +224,7 @@ void SecureMemory::processNextRespSendEvent(){
 
     stats.totalResponseBufferLatency += curTick() - responseBuffer.frontTime();
     stats.numResponsesFwded++;
-    
+
     PacketPtr pkt = responseBuffer.front();
     cpuSidePort.sendPacket(pkt);
     responseBuffer.pop();
@@ -268,53 +268,5 @@ SecureMemory::SecureMemoryStats::SecureMemoryStats(SecureMemory* secure_memory):
     ADD_STAT(totalResponseBufferLatency, statistics::units::Tick::get(), "Total response buffer latency."),
     ADD_STAT(numResponsesFwded, statistics::units::Count::get(), "Number of responses forwarded.")
 {}
-
-uint64_t
-SecureMemory::getHmacAddr(uint64_t child_addr)
-{
-    AddrRangeList ranges = memSidePort.getAddrRanges();
-    assert(ranges.size() == 1);
-
-    uint64_t start = ranges.front().start();
-    uint64_t end = ranges.front().end();
-
-    if (!(child_addr >= start && child_addr < end)) {
-        // this is a check for something that isn't metadata
-        return (uint64_t) -1;
-    }
-
-    // raw location, not word aligned
-    uint64_t hmac_addr = integrity_levels[hmac_level] + ((child_addr / BLOCK_SIZE) * HMAC_SIZE);
-
-    // word aligned
-    return hmac_addr - (hmac_addr % BLOCK_SIZE);
-}
-
-uint64_t
-SecureMemory::getParentAddr(uint64_t child_addr)
-{
-    AddrRangeList ranges = memSidePort.getAddrRanges();
-    assert(ranges.size() == 1);
-
-    uint64_t start = ranges.front().start();
-    uint64_t end = ranges.front().end();
-
-    if (child_addr >= start && child_addr < end) {
-        // child is data, get the counter
-        return integrity_levels[counter_level] + ((child_addr / PAGE_SIZE) * BLOCK_SIZE);
-    }
-
-    for (int i = counter_level; i > root_level; i--) {
-        if (child_addr >= integrity_levels[i] && child_addr < integrity_levels[i - 1]) {
-            // we belong to this level
-            uint64_t index_in_level = (child_addr - integrity_levels[i]) / BLOCK_SIZE;
-            return integrity_levels[i - 1] + ((index_in_level / ARITY) * BLOCK_SIZE);
-        }
-    }
-
-    assert(child_addr == integrity_levels[root_level]);
-    // assert(false); // we shouldn't ever get here
-    return (uint64_t) -1;
-}
 
 }
