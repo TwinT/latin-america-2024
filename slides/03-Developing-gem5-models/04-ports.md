@@ -358,7 +358,7 @@ DebugFlag("SecureMemory")
 
 ## SecureMemory: C++ Files
 
-Now, let's go ahead and create a header and source file for `SecureMemory` in `gem5/src/bootcamp/insepctor_gadget`. Remember to make sure the path to your header file matches that of what you specified in `cxx_header` in `SecureMemory.py` and the path for your source file matches that of what you specified in `SConscript`. Run the following commands from within our `insepctor_gadget` directory:
+Now, let's go ahead and create a header and source file for `SecureMemory` in `gem5/src/bootcamp/secure_memory`. Remember to make sure the path to your header file matches that of what you specified in `cxx_header` in `SecureMemory.py` and the path for your source file matches that of what you specified in `SConscript`. Run the following commands from within our `secure_memory` directory:
 
 ```sh
 touch secure_memory.hh
@@ -1027,7 +1027,7 @@ void
 SecureMemory::scheduleNextReqRetryEvent(Tick when)
 {
     if (cpuSidePort.needRetry() && !nextReqRetryEvent.scheduled()) {
-        schedule(nextReqRetryEvent, align(when));
+        schedule(nextReqRetryEvent, when);
     }
 }
 ```
@@ -1071,18 +1071,10 @@ SecureMemory::scheduleNextReqSendEvent(Tick when)
     bool have_items = !buffer.empty();
 
     if (port_avail && have_items && !nextReqSendEvent.scheduled()) {
-        Tick schedule_time = align(buffer.firstReadyTime());
+        Tick schedule_time = buffer.firstReadyTime();
         schedule(nextReqSendEvent, schedule_time);
     }
 }
-```
-
-You might wonder why we need to calculate `schedule_time` ourselves. As we mentioned, `Tick when` is passed from the perspective of the caller for when it thinks `nextReqSendEvent` should be scheduled. However, we need to make sure that we schedule the event at the time that simulates latencies correctly.
-
-Make sure to add the following include statement as well since we're using `std::max`.
-
-```cpp
-#include <algorithm>
 ```
 
 ---
@@ -1130,7 +1122,7 @@ SecureMemory::MemSidePort::recvReqRetry()
 
 ## SecureMemory::recvReqRetry
 
-Let's go ahead and declare and define `recvReqRetry` in the `public` scope of `SecureMemory`. Add the following lines to `secure_memory.hh` to declare `InpsectorGadget::recvReqRetry`:
+Let's go ahead and declare and define `recvReqRetry` in the `public` scope of `SecureMemory`. Add the following lines to `secure_memory.hh` to declare `SecureMemory::recvReqRetry`:
 
 ```cpp
   private:
@@ -1184,14 +1176,14 @@ Let's declare the following in `secure_memory.hh` to implement the `response` pa
 ```cpp
   private:
     TimedQueue<PacketPtr> responseBuffer;
-
     EventFunctionWrapper nextRespSendEvent;
+    EventFunctionWrapper nextRespRetryEvent;
     void processNextRespSendEvent();
     void scheduleNextRespSendEvent(Tick when);
     void processNextRespRetryEvent();
     void scheduleNextRespRetryEvent(Tick when);
     void recvRespRetry()
-    
+
   public:
     bool recvTimingResp(PacketPtr pkt);
 ```
@@ -1213,10 +1205,10 @@ void SecureMemory::recvRespRetry();
 void SecureMemory::processNextRespSendEvent();
 void SecureMemory::scheduleNextRespSendEvent(Tick when);
 void SecureMemory::processNextRespRetryEvent();
-void SecureMemory::scheduleNextRespSendEvent(Tick when);
+void SecureMemory::scheduleNextRespRetryEvent(Tick when);
 ```
 
-To find the definition for all these functions please look at the [complete version](../../materials/03-Developing-gem5-models/04-ports/step-1/src/bootcamp/secure_memory/secure_memory.cc) of `secure_memory.cc`. You can search for `Too-Much-Code` to find these functions.
+To find the definition for all these functions please look at the [complete version](../../materials/03-Developing-gem5-models/04-ports/step-1/src/bootcamp/inspector-gadget/inspector-gadget.cc) of `inspector_gadget.cc`. You can search for `Too-Much-Code` to find these functions. (Note that you'll need to change the name of the class to `SecureMemory`).
 
 ---
 
@@ -1245,7 +1237,7 @@ SecureMemory::SecureMemory(const SecureMemoryParams& params):
 
 ## SimObject::init
 
-Last step before compilation is to define the `init` function. Since `SecureMemory` is a `Responder` object, the convention is to let `peer` ports know that they can ask for their address range when the ranges become known. `init` is a `virtual` and `public` function from `SimObject`. Let's go ahead and declare it to override it. To do this, add the following declaration to the `public` scope of `SecureMemory` in `insepctor_gadget.hh`.
+Last step before compilation is to define the `init` function. Since `SecureMemory` is a `Responder` object, the convention is to let `peer` ports know that they can ask for their address range when the ranges become known. `init` is a `virtual` and `public` function from `SimObject`. Let's go ahead and declare it to override it. To do this, add the following declaration to the `public` scope of `SecureMemory` in `secure_memory.hh`.
 
 ```cpp
 virtual void init() override;
@@ -1316,7 +1308,7 @@ from gem5.components.boards.abstract_board import AbstractBoard
 from gem5.components.memory.memory import ChanneledMemory
 from gem5.utils.override import overrides
 
-class SecureMemory(ChanneledMemory):
+class ChanneledSecureMemory(ChanneledMemory):
     def __init__(
         self,
         dram_interface_class: Type[DRAMInterface],
@@ -1370,14 +1362,14 @@ class SecureMemory(ChanneledMemory):
 Now, let's just simply add the following imports to `gem5/configs/bootcamp/secure_memory/first-secure-memory-example.py`:
 
 ```python
-from components.inspected_memory import SecureMemory
+from components.inspected_memory import ChanneledSecureMemory
 from m5.objects.DRAMInterface import DDR3_1600_8x8
 ```
 
 Let's now create an object of `SecureMemory` with the following parameters.
 
 ```python
-memory = SecureMemory(
+memory = ChanneledSecureMemory(
     dram_interface_class=DDR3_1600_8x8,
     num_channels=2,
     interleaving_size=128,
@@ -1415,7 +1407,7 @@ In this step, we see how to add statistics to our `SimObjects` so that we can me
 
 ## Statistics:: Header File
 
-gem5 has its own internal classes for measuring statistics (stats for short). Let's go ahead and include the header files for them in `src/bootcamp/insepctor_gadget.hh`
+gem5 has its own internal classes for measuring statistics (stats for short). Let's go ahead and include the header files for them in `src/bootcamp/secure_memory.hh`
 
 ```cpp
 #include "base/statistics.hh"
@@ -1424,7 +1416,7 @@ gem5 has its own internal classes for measuring statistics (stats for short). Le
 
 gem5 stats have multiple types, each useful for measuring specific types of data. We will look at using `statistics::Scalar` stats since all the things we want to measure are scalars.
 
-Let's go ahead a declare a new `struct` called `SecureMemoryStats` inside the `private` scope of `SecureMemory` and also declare an instance of it. It will inherit from `statistics::Group`. Add the following lines to `src/bootcamp/insepctor_gadget.hh` to do this.
+Let's go ahead a declare a new `struct` called `SecureMemoryStats` inside the `private` scope of `SecureMemory` and also declare an instance of it. It will inherit from `statistics::Group`. Add the following lines to `src/bootcamp/secure_memory.hh` to do this.
 
 ```cpp
   private:
@@ -1444,7 +1436,7 @@ Let's go ahead a declare a new `struct` called `SecureMemoryStats` inside the `p
 
 ## Statistics: Source File
 
-Let's define the constructor of `SecureMemoryStats`. Add the following code under `namespace gem5` to do this.
+Let's define the constructor of `SecureMemoryStats`. Add the following code under `namespace gem5` in the `secure_memory.cc` file to do this.
 
 ```cpp
 
@@ -1482,7 +1474,7 @@ SecureMemory::processNextReqSendEvent()
 }
 
 void
-SecureMemory::processNextReqSendEvent()
+SecureMemory::processNextRespSendEvent()
 {
     // ...
     stats.numResponsesFwded++;
@@ -1521,7 +1513,7 @@ SecureMemory::processNextReqSendEvent()
 }
 
 void
-SecureMemory::processNextReqSendEvent()
+SecureMemory::processNextRespSendEvent()
 {
     // ...
     stats.numResponsesFwded++;
@@ -1580,8 +1572,48 @@ We will send extra memory accesses to the memory controller to read and update t
 > Hints are on the next slide
 
 ---
+<!-- _class:  two-col  -->
 
-## Step 2 hints
+## Step 2: Developing the Secure Memory header file
+
+You need to define a few macros, variables and functions that are not shown in the file that is referenced below and that are neeed in order to complete the functionality of the secure memory unit. Make sure you add these to the `secure_memory.h`:
+
+```cpp
+#define ARITY 8
+#define BLOCK_SIZE 64
+#define HMAC_SIZE 8
+#define PAGE_SIZE 4096
+```
+
+###
+
+Then inside the SecureMemory class:
+
+```cpp
+    std::deque<uint64_t> integrity_levels;
+
+    // variables to help refer to certain metadata types
+    int root_level = 1;
+    int hmac_level = 0;
+    int data_level; // set after object construction in setup()
+    int counter_level; // set after object construction in setup()
+    // structures to know what is currently pending authentication, etc
+    std::set<uint64_t> pending_tree_authentication;
+    // a bit of a misnomer, we'll use this for hmacs so all tree nodes
+    // can go to pending_authentications
+    std::set<uint64_t> pending_hmac;
+    // fetched but not verified OR writes waiting for path to update
+    std::set<PacketPtr> pending_untrusted_packets;
+// secure memory functions
+    uint64_t getHmacAddr(uint64_t child_addr); // fetch address of the hmac for somed data
+    uint64_t getParentAddr(uint64_t child_addr); // fetch parent node in the tree
+    void verifyChildren(PacketPtr parent); // remove children from pending untrusted once trusted
+    bool handleResponse(PacketPtr pkt) ;
+    bool handleRequest(PacketPtr pkt);
+```
+
+---
+## Step 2: Developing the Secure Memory source file
 
 You can use the following file as a reference:
 
