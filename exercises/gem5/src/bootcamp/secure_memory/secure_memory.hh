@@ -133,8 +133,41 @@ class SecureMemory : public ClockedObject
     };
     SecureMemoryStats stats;
 
+        //// ~ secure memory stuff ~ ////
+
+    // helper structure that gives first address per metadata level
+    // finding an address is a function of getting the index in the
+    // current level and getting the address at (index / ARITY) in
+    // the level above
+    std::deque<uint64_t> integrity_levels;
+
+    // variables to help refer to certain metadata types
+    int root_level = 1;
+    int hmac_level = 0;
+    int data_level; // set after object construction in setup()
+    int counter_level; // set after object construction in setup()
+
+    // structures to know what is currently pending authentication, etc
+    std::set<uint64_t> pending_tree_authentication;
+    // a bit of a misnomer, we'll use this for hmacs so all tree nodes
+    // can go to pending_authentications
+    std::set<uint64_t> pending_hmac;
+
+    bool handleRequest(PacketPtr pkt);  // we will do our work here
+    bool handleResponse(PacketPtr pkt); // and here
+
+    // fetched but not verified OR writes waiting for path to update
+    std::set<PacketPtr> pending_untrusted_packets;
+
+    // secure memory functions
+    uint64_t getHmacAddr(uint64_t child_addr); // fetch address of the hmac for somed data
+    uint64_t getParentAddr(uint64_t child_addr); // fetch parent node in the tree
+
+    void verifyChildren(PacketPtr parent); // remove children from pending untrusted once trusted
+
   public:
     SecureMemory(const SecureMemoryParams& params);
+    void startup() override;
     virtual void init() override;
     virtual Port& getPort(const std::string& if_name, PortID idxInvalidPortID);
 
@@ -146,10 +179,6 @@ class SecureMemory : public ClockedObject
     // response path
     bool recvTimingResp(PacketPtr pkt);
     void recvRespRetry();
-
-    // secure memory functions
-    uint64_t getHmacAddr(uint64_t child_addr); // fetch address of the hmac for somed data
-    uint64_t getParentAddr(uint64_t child_addr); // fetch parent node in the tree
 
 };
 
